@@ -1,0 +1,8 @@
+*
+!appveyor.yml
+!*.cpp
+!*.vcxproj
+!*.sln
+!.gitignore
+!LICENSE
+!README.md
