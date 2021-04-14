@@ -16,6 +16,11 @@ GetConsoleWindow.restype = HWND
 OpenProcess = ctypes.windll.kernel32.OpenProcess
 OpenProcess.restype = HANDLE
 
+TerminateProcess = ctypes.windll.kernel32.TerminateProcess
+TerminateProcess.restype = BOOL
+
+CloseHandle = ctypes.windll.kernel32.CloseHandle
+
 VirtualAllocEx = windll.kernel32.VirtualAllocEx
 VirtualAllocEx.argtypes = [HANDLE, LPVOID, SIZE_T, DWORD, DWORD]
 VirtualAllocEx.restype = LPVOID

